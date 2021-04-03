@@ -375,14 +375,7 @@ int floatFloat2Int(unsigned uf) {
  */
 unsigned floatPower2(int x) {
   /* 2.0^x == (1*1.0*2^1) * (1*1.0*2^1)^(x-1) */
-  /* it's much easier to implement it without a loop */
-
-  // int INF = 0xff<<23;
-  // int exp = x + 127;
-  // if(exp <= 0) return 0;
-  // if(exp >= 255) return INF;
-  // return exp << 23;
-
+  /* it would be much easier to implement it without a loop */
   unsigned significant = 1;
   unsigned frac = 0;
   unsigned exp = 0x80;
