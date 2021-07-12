@@ -1,0 +1,404 @@
+phase_1:
+    try string stored in $0x402400:
+        x/s 0x402400
+    result:
+        Border relations with Canada have never been better.
+
+phase_2:
+    found user inputs stored in %rdi in phase_2:
+        400e4e:	e8 4b 06 00 00       	callq  40149e <read_line>
+        400e53:	48 89 c7             	mov    %rax,%rdi
+        400e56:	e8 a1 00 00 00       	callq  400efc <phase_2>
+        400e5b:	e8 64 07 00 00       	callq  4015c4 <phase_defused>
+    step into read_six_numbers, execute:
+        x/s $rsi
+    found input data format:
+        %d %d %d %d %d %d
+    which means inputs are 6 space-separated numbers.
+    arguments of sscanf in read_six_numbers:
+        1 %rdi          input string
+        2 %rsi          %d %d %d %d %d %d
+        3 %rdx          1th number      after retq: (%rsp)
+        4 %rcx          2th number      after retq: 0x4(%rsp)
+        5 %r8           3th number      after retq: 0x8(%rsp)
+        6 %r9           4th number      after retq: 0xc(%rsp)
+        7 memory        5th number      after retq: 0x10(%rsp)
+        8 memory        6th number      after retq: 0x14(%rsp)
+    then jump back to phase_2:
+        code segment 0: first number is 1
+            400f05:	e8 52 05 00 00       	callq  40145c <read_six_numbers>
+            400f0a:	83 3c 24 01          	cmpl   $0x1,(%rsp)
+            400f0e:	74 20                	je     400f30 <phase_2+0x34>
+            400f10:	e8 25 05 00 00       	callq  40143a <explode_bomb>
+        code segment 1: get the next number
+            400f30:	48 8d 5c 24 04       	lea    0x4(%rsp),%rbx
+            400f35:	48 8d 6c 24 18       	lea    0x18(%rsp),%rbp
+            400f3a:	eb db                	jmp    400f17 <phase_2+0x1b>
+        code segment 2: make sure current_number == 2 * previous_number
+            400f17:	8b 43 fc             	mov    -0x4(%rbx),%eax
+            400f1a:	01 c0                	add    %eax,%eax
+            400f1c:	39 03                	cmp    %eax,(%rbx)
+            400f1e:	74 05                	je     400f25 <phase_2+0x29>
+            400f20:	e8 15 05 00 00       	callq  40143a <explode_bomb>
+    result:
+        1 2 4 8 16 32
+
+phase_3:
+    execute:
+        x/s 0x4025cf
+    found input data format:
+        0x4025cf:       "%d %d"
+    arguments of sscanf:
+        1 %rdi          input string
+        2 %rsi          %d %d
+        3 %rdx          1th number      0x8(%rsp)
+        4 %rcx          2th number      0xc(%rsp)
+    requirements:
+        this code segment implies that 1th number x is in [0, 7]
+            400f6a:	83 7c 24 08 07       	cmpl   $0x7,0x8(%rsp)
+            400f6f:	77 3c                	ja     400fad <phase_3+0x6a>
+        now look at this code segment
+            400f71:	8b 44 24 08          	mov    0x8(%rsp),%eax
+            400f75:	ff 24 c5 70 24 40 00 	jmpq   *0x402470(,%rax,8)
+        this code segment means subsequent executions depend on the 1th number 
+        execute:
+            print /x *(int *) 0x402470
+        got:
+            0x400f7c
+        looks like we can simply set the 1th number to 0
+        and the second number should be $0xcf, which is 207 in decimal:
+            400f7c:	b8 cf 00 00 00       	mov    $0xcf,%eax
+            400f81:	eb 3b                	jmp    400fbe <phase_3+0x7b>
+            ...
+            400fbe:	3b 44 24 0c          	cmp    0xc(%rsp),%eax
+            400fc2:	74 05                	je     400fc9 <phase_3+0x86>
+            400fc4:	e8 71 04 00 00       	callq  40143a <explode_bomb>
+            400fc9:	48 83 c4 18          	add    $0x18,%rsp
+            400fcd:	c3                   	retq
+        result:
+            0 207
+        
+phase_4:
+    found input data format:
+        0x4025cf:       "%d %d"
+    arguments of sscanf:
+        1 %rdi          input string
+        2 %rsi          %d %d
+        3 %rdx          1th number      0x8(%rsp)
+        4 %rcx          2th number      0xc(%rsp)
+    the 1th number x should satisfy 0 <= x <= 14
+        40102e:	83 7c 24 08 0e       	cmpl   $0xe,0x8(%rsp)
+        401033:	76 05                	jbe    40103a <phase_4+0x2e>
+        401035:	e8 00 04 00 00       	callq  40143a <explode_bomb>
+    arguments of func4:
+        1 %rdi          1th number      0x8(%rsp)
+        2 %rsi          0x0
+        3 %rdx          0xe
+    the pseudo code of func4:
+        # x: %rdi, y: %rsi, z: %rdx
+        def func4(x, y, z):
+            tmp = z - y
+            tmp += tmp >> 31  # logical shift
+            tmp >> 1          # arithmetic shift
+            tmp2 = tmp + y
+            if tmp2 - x <= 0:
+                res = 0
+                if tmp2 - x < 0:
+                    y = tmp2 - 1
+                    res = func4(x, y, z)
+                    res += 2 * res + 1
+            else:
+                z = tmp2 - 1
+                res = func4(x, y, z)
+                res += res
+            return res
+    after calling func4, %eax should be 0 and 0xc(%rsp) should be 0.
+    now let's track the calls of func4:
+        func4(x, 0, 14)
+            if x >= 7:
+                res = 0
+            if x == 7:
+                return 0
+        balabala
+    well, it seems that simply set inputs to 7 0 is okay.
+    result:
+        7 0
+
+phase_5:
+    first check function string_length:
+        arguments:
+            1 %rdi
+        return:
+            the number of chars in string
+    so we shall trust strings_not_equal too.
+    we can easily find that input should be a string of length 6:
+        40107f:	83 f8 06             	cmp    $0x6,%eax
+    then:
+        %eax = 0x0
+        loop:
+            %ecx = (%rbx,%rax,1) (which is the string's first char address initially)
+            (%rsp) = %cl (which is just the first char of the string)
+            %edx = 0xf & %cl (low 4 bits)
+            %edx = 0x4024b0(%rdx)
+            0x10(%rsp,%rax,1) = %dl
+            %rax += 0x1
+        goto loop until all 6 chars parsed
+        0x16(%rsp) = 0
+        %esi = $0x40245e
+        %rdi = %rsp + 0x10
+        call strings_not_equal
+        ...
+    well, let's guess, maybe the answer is just %rsi in strings_not_equal
+    execute at breakpoint 0x4010bd:
+        x/s $rsi
+    got:
+        0x40245e:       "flyers"
+    after tried "flyers", the bomb is not defused, so the order is permuted.
+        input "flyers" was permuted to "rvfedu"
+    which means the loop part of the code should be carefully examined.
+    0x10(%rsp) to 0x15(%rsp) stores the 6 chars
+    it seems that the program first uses input as index,
+    then use the index to fetch char from a predefined array.
+    execute:
+        print (char *) 0x4024b0 (or simply x/s 0x4024b0)
+    got:
+        $21 = 0x4024b0 <array> "maduiersnfotvbylSo you think you can stop the bomb with ctrl-c, do you?"
+    note that the first 16 chars are (index bits masked by 0xf):
+        maduiersnfotvbyl
+    recall that 'f' was permuted to 'r':
+        'f' is 0x66, 0x66 & 0xf = 0x6, 'r' is exactly the char of array[6]
+    in order to get "flyers", we need index:
+        9, 15, 14, 5, 6, 7
+    we need chars:
+        chr(0x69), chr(0x6f), chr(0x6e), chr(0x65), chr(0x66), chr(0x67)
+    result:
+        ionefg
+
+phase_6:
+    after read_six_numbers, 0x0(%rsp) ~ 0x14(%rsp) stores 6 numbers.
+    then:
+        %r13 = %rsp
+        %r14 = %rsp
+        loop_outer:
+            %rbp = %r13
+            %eax = M[%r13] (initial value 1th number, should be 1~6)
+            %eax -= 1
+            if not 0 <= %eax <= 5:
+                explode
+            %r12d initial value 0, %r12d += 1
+            if %r12d == 6: (%r12d 1~6)
+                break
+            else:
+                %ebx = %r12d (ebx init value is 1)
+                loop:
+                    %rax = %ebx (signed)
+                    %eax = (%rsp + 4 * %rax)
+                    if (%rbp) == %eax:
+                        explode
+                    %ebx += 1
+                    if %ebx <= 5:
+                        goto loop
+                %r13 += 4
+                goto loop_outer
+    what the above said is that:
+        each number x should satisfy 1 <= x <= 6
+        6 numbers distinguish with each other
+    then:
+        %rsi = 0x18(%rsp)   (here is 0)
+        %rax = %r14         (address of 1th number)
+        %ecx = 7
+        do:
+            %edx = %ecx
+            %edx -= (%rax)
+            (%rax) = %edx
+            %rax += 4
+        while %rax != %rsi:
+    what the above said is that:
+        set each number x to 7 - x
+    then:
+        %esi = 0
+        do:
+            %ecx = (%rsp + %rsi)    (loop throught 1th to 6th)
+            if %ecx > 1:
+                %eax = 1
+                %edx = $0x6032d0
+                do:
+                    %rdx = 0x8(%rdx)
+                    %eax += 1
+                while %eax != %ecx
+            else:
+                %edx = $0x6032d0
+            0x20(%rsp,%rsi,2) = %rdx
+            %rsi += 4
+        while %rsi != 0x18:
+    what the above said is that:
+        set 6 values at 0x20(%rsp), each value is 8 btyes.
+        the value is associated with input numbers.
+        input number        set value       memory value
+        1                   0x6032d0        332
+        2                   0x6032e0        168
+        3                   0x6032f0        924
+        4                   0x603300        691
+        5                   0x603310        477
+        6                   0x603320        443
+    then (0x4011ab):
+        %rbx = (%rsp + 0x20)    (1th asso value)
+        %rax = %rsp + 0x28      (2th asso address)
+        %rsi = %rsp + 0x50
+        %rcx = %rbx
+        while true:
+            %rdx = (%rax)
+            0x8(%rcx) = %rdx
+            %rax += 0x8
+            if %rax == %rsi:
+                break
+            %rcx = %rdx
+        0x8(%rdx) = 0x0
+    what the above said is that:
+        store associated value in memory
+        (***this is exactly a linked list!***)
+        %rbx stores the 1th associated value
+    then:
+        we observe that %ebp is set to 5
+        while %ebp != 1: (ebp in [5, 4, 3, 2])
+            4011df:	48 8b 43 08          	mov    0x8(%rbx),%rax
+            4011e3:	8b 00                	mov    (%rax),%eax
+            4011e5:	39 03                	cmp    %eax,(%rbx)
+            4011e7:	7d 05                	jge    4011ee <phase_6+0xfa>
+            4011e9:	e8 4c 02 00 00       	callq  40143a <explode_bomb>
+            4011ee:	48 8b 5b 08          	mov    0x8(%rbx),%rbx
+            4011f2:	83 ed 01             	sub    $0x1,%ebp
+        which means that numbers are sorted in reverse order by the their memory values.
+            3                   0x6032f0        924
+            4                   0x603300        691
+            5                   0x603310        477
+            6                   0x603320        443
+            1                   0x6032d0        332
+            2                   0x6032e0        168
+        recall that these numbers are 7 - x
+        so original numbers should be 4 3 2 1 6 5
+    result:
+        4 3 2 1 6 5
+
+secret_phase:
+    find secret_phase called in phase_defused
+        4015d8:	83 3d 81 21 20 00 06 	cmpl   $0x6,0x202181(%rip)
+        4015df:	75 5e                	jne    40163f <phase_defused+0x7b>
+    jne 0x40163f will skip secret_phase
+    by running gbd, found that 0x202181(%rip) is exactly the phase number.
+    so secret_phase only has the chance of being called in phase_6.
+    keep going on:
+        4015f0:	be 19 26 40 00       	mov    $0x402619,%esi
+        4015f5:	bf 70 38 60 00       	mov    $0x603870,%edi
+    found:
+        x/s 0x402619 -> "%d %d %s"
+        x/s 0x603870 -> "7 0"
+    this is exactly what phase_4's input
+    the resulting %eax != 3, so we should add a string after 7 0, say xxx.
+    it will goes here:
+        401604:	be 22 26 40 00       	mov    $0x402622,%esi
+    show content in $0x402622:
+        x/s $esi -> "DrEvil"
+    so change answer to phase_4 to 7 0 DrEvil,
+    then set breakpoint on secret_phase, re-run the debuger,
+    now we arrived at secret_phase:
+        %edx = 0xa
+        %esi = 0x0
+        %rdi = %rax                         (address of the input)
+        %rax = strtol(%rdi, %rsi, %rdx)     (string to long, return long)
+        %rbx = %rax                         (original long input)
+        %eax = %rax - 1
+        if %eax < 0 or %eax > 1000:
+            explode_bomb
+        %esi = %ebx                         (%esi = long input)
+        %edi = $0x6030f0                    (print /s *0x6030f0 -> 36)
+        call fun7
+        %eax should equal to 0x2 otherwise explode.
+    now let's go to fun7, we want the return value 0x2:
+        fun7(%rdi, %rsi):
+            if %rdi == 0:                       (this is null pointer)
+                %eax = $0xffffffff
+                %rsp += $0x8
+                return %rax
+            %edx = (%rdi)                       (%edx = 36)
+            if %edx <= %esi:                    (input >= 36)
+                %eax = 0
+                if %edx = %esi:
+                    %rsp += $0x8
+                    return %rax
+                %rdi = 0x10(%rdi)
+                %rax = fun7(%rdi, %rsi)
+                %eax = %rax + %rax + 0x1
+                %rsp += $0x8
+                return %rax
+            %rdi = 0x8(%rdi)                    (%rdi =  for first time)
+            %rax = fun7(%rdi, %rsi)             (recurrsion)
+            %eax += %eax
+            %rsp += $0x8
+            return %rax
+    what the above said is:
+        if %rdx == null:
+            return -1
+        if input == (%rdx):
+            return 0
+        if input > (%rdx):
+            %rdi = 0x10(%rdi)
+            return 2 * fun(%rdi, %rsi) + 1
+        else:  (input < (%rdx))
+            %rdi = 0x8(%rdi)
+            return 2 * fun(%rdi, %rsi)
+    checkout values for %rdi:
+        0x6030f0 <n1>:  0x24    0x603110 <n21>
+        0x603100 <n1+16>:       0x603130 <n22>  0x0
+        0x603110 <n21>: 0x8     0x603190 <n31>
+        0x603120 <n21+16>:      0x603150 <n32>  0x0
+        ...
+    well, this looks like a tree structure, checkout symbol table:
+        there are n1 n21 n22 ... n48, total 1 + 2 + 4 + 8 = 15 nodes
+        those nodes are stored in level order (probably).
+    now let's check all their values: (use x/60g to print out)
+        0x6030f0 <n1>:  0x24    0x603110 <n21>
+        0x603100 <n1+16>:       0x603130 <n22>  0x0
+        0x603110 <n21>: 0x8     0x603190 <n31>
+        0x603120 <n21+16>:      0x603150 <n32>  0x0
+        0x603130 <n22>: 0x32    0x603170 <n33>
+        0x603140 <n22+16>:      0x6031b0 <n34>  0x0
+        0x603150 <n32>: 0x16    0x603270 <n43>
+        0x603160 <n32+16>:      0x603230 <n44>  0x0
+        0x603170 <n33>: 0x2d    0x6031d0 <n45>
+        0x603180 <n33+16>:      0x603290 <n46>  0x0
+        0x603190 <n31>: 0x6     0x6031f0 <n41>
+        0x6031a0 <n31+16>:      0x603250 <n42>  0x0
+        0x6031b0 <n34>: 0x6b    0x603210 <n47>
+        0x6031c0 <n34+16>:      0x6032b0 <n48>  0x0
+        0x6031d0 <n45>: 0x28    0x0
+        0x6031e0 <n45+16>:      0x0     0x0
+        0x6031f0 <n41>: 0x1     0x0
+        0x603200 <n41+16>:      0x0     0x0
+        0x603210 <n47>: 0x63    0x0
+        0x603220 <n47+16>:      0x0     0x0
+        0x603230 <n44>: 0x23    0x0
+        0x603240 <n44+16>:      0x0     0x0
+        0x603250 <n42>: 0x7     0x0
+        0x603260 <n42+16>:      0x0     0x0
+        0x603270 <n43>: 0x14    0x0
+        0x603280 <n43+16>:      0x0     0x0
+        0x603290 <n46>: 0x2f    0x0
+        0x6032a0 <n46+16>:      0x0     0x0
+        0x6032b0 <n48>: 0x3e9   0x0
+        0x6032c0 <n48+16>:      0x0     0x0
+    let's draw the tree structure:
+        n1  36
+        n21 8                           n22 50
+        n31 6   n32 22                  n33 45  n34 107
+        n41 1   n42 7   n43 20  n44 35  n45 40  n46 47  n47 99  n48 1001
+    now we can consider how to get 2 as return value:
+        when input < node_value (36)
+            return 2 * func(left_child_address, input)
+        then func(left_child_address, input) should equal to 1, so
+            input > left_child_value (8)
+            return 2 * func(right_child_address, input) + 1
+        then input should equal to right_child_value (n32)
+            so input = 22
+    result:
+        22
