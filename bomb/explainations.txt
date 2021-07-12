@@ -285,7 +285,7 @@ secret_phase:
         4015d8:	83 3d 81 21 20 00 06 	cmpl   $0x6,0x202181(%rip)
         4015df:	75 5e                	jne    40163f <phase_defused+0x7b>
     jne 0x40163f will skip secret_phase
-    by running gbd, found that 0x202181(%rip) is exactly the phase number.
+    by running gdb, found that 0x202181(%rip) is exactly the phase number.
     so secret_phase only has the chance of being called in phase_6.
     keep going on:
         4015f0:	be 19 26 40 00       	mov    $0x402619,%esi
