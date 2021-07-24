@@ -1,0 +1,1 @@
+./hex2raw < ctarget.l2.txt | ./ctarget

