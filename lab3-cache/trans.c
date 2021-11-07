@@ -32,6 +32,7 @@ void transpose_submit(int M, int N, int A[N][M], int B[M][N]) {
 
     if (M == 64 && N == 64) {
         transpose_q2(N, A, B);
+        return;
     }
 
     if (M == 61 && N == 67) {
