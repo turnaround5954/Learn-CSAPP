@@ -11,7 +11,7 @@
 #include "cachelab.h"
 
 int is_transpose(int M, int N, int A[N][M], int B[M][N]);
-
+void swap(int* x, int* y);
 void transpose_q1(int N, int A[N][N], int B[N][N]);
 void transpose_q2(int N, int A[N][N], int B[N][N]);
 void transpose_q3(int M, int N, int A[N][M], int B[M][N]);
@@ -44,6 +44,12 @@ void transpose_submit(int M, int N, int A[N][M], int B[M][N]) {
  * You can define additional transpose functions below. We've defined
  * a simple one below to help you get started.
  */
+void swap(int* x, int* y) {
+    *y = (*x) ^ (*y);
+    *x = (*x) ^ (*y);
+    *y = (*x) ^ (*y);
+}
+
 void transpose_q1(int N, int A[N][N], int B[N][N]) {
     int i, j, bi, bj;
     int t0, t1, t2, t3, t4, t5, t6, t7;
@@ -69,9 +75,7 @@ void transpose_q1(int N, int A[N][N], int B[N][N]) {
             }
             for (bi = 0; bi < 8; bi++) {
                 for (bj = bi + 1; bj < 8; bj++) {
-                    t0 = B[j + bi][i + bj];
-                    B[j + bi][i + bj] = B[j + bj][i + bi];
-                    B[j + bj][i + bi] = t0;
+                    swap(&B[j + bi][i + bj], &B[j + bj][i + bi]);
                 }
             }
         }
@@ -79,41 +83,55 @@ void transpose_q1(int N, int A[N][N], int B[N][N]) {
 }
 
 void transpose_q2(int N, int A[N][N], int B[N][N]) {
-    int i, j, k;
-    int t, t0, t1, t2, t3, t4, t5, t6, t7;
+    int i, j, bi, bj;
+    int t0, t1, t2, t3, t4, t5, t6, t7;
     for (i = 0; i < N; i += 8) {
         for (j = 0; j < N; j += 8) {
-            for (k = 0; k < 4; k++) {
-                t0 = A[k + i][j + 0];
-                t1 = A[k + i][j + 1];
-                t2 = A[k + i][j + 2];
-                t3 = A[k + i][j + 3];
-                t4 = A[k + i][j + 4];
-                t5 = A[k + i][j + 5];
-                t6 = A[k + i][j + 6];
-                t7 = A[k + i][j + 7];
-                B[j + 0][k + i] = t0;
-                B[j + 1][k + i] = t1;
-                B[j + 2][k + i] = t2;
-                B[j + 3][k + i] = t3;
-                B[j + 0][k + i + 4] = t4;
-                B[j + 1][k + i + 4] = t5;
-                B[j + 2][k + i + 4] = t6;
-                B[j + 3][k + i + 4] = t7;
+            for (bi = 0; bi < 4; bi++) {
+                t0 = A[bi + i][j + 0];
+                t1 = A[bi + i][j + 1];
+                t2 = A[bi + i][j + 2];
+                t3 = A[bi + i][j + 3];
+                t4 = A[bi + i][j + 4];
+                t5 = A[bi + i][j + 5];
+                t6 = A[bi + i][j + 6];
+                t7 = A[bi + i][j + 7];
+                B[j + bi][i + 0] = t0;
+                B[j + bi][i + 1] = t1;
+                B[j + bi][i + 2] = t2;
+                B[j + bi][i + 3] = t3;
+                B[j + bi][i + 4] = t4;
+                B[j + bi][i + 5] = t5;
+                B[j + bi][i + 6] = t6;
+                B[j + bi][i + 7] = t7;
             }
-            for (k = 0; k < 4; k++) {
-                t0 = A[i + 4][j + k], t4 = A[i + 4][j + k + 4];
-                t1 = A[i + 5][j + k], t5 = A[i + 5][j + k + 4];
-                t2 = A[i + 6][j + k], t6 = A[i + 6][j + k + 4];
-                t3 = A[i + 7][j + k], t7 = A[i + 7][j + k + 4];
-                t = B[j + k][i + 4], B[j + k][i + 4] = t0, t0 = t;
-                t = B[j + k][i + 5], B[j + k][i + 5] = t1, t1 = t;
-                t = B[j + k][i + 6], B[j + k][i + 6] = t2, t2 = t;
-                t = B[j + k][i + 7], B[j + k][i + 7] = t3, t3 = t;
-                B[j + k + 4][i + 0] = t0, B[j + k + 4][i + 4] = t4;
-                B[j + k + 4][i + 1] = t1, B[j + k + 4][i + 5] = t5;
-                B[j + k + 4][i + 2] = t2, B[j + k + 4][i + 6] = t6;
-                B[j + k + 4][i + 3] = t3, B[j + k + 4][i + 7] = t7;
+            for (bi = 0; bi < 4; bi++) {
+                for (bj = bi + 1; bj < 4; bj++) {
+                    swap(&B[j + bi][i + bj], &B[j + bj][i + bi]);
+                    swap(&B[j + bi][i + bj + 4], &B[j + bj][i + bi + 4]);
+                }
+            }
+            for (bi = 0; bi < 4; bi++) {
+                t0 = A[i + 4][j + bi];
+                t1 = A[i + 5][j + bi];
+                t2 = A[i + 6][j + bi];
+                t3 = A[i + 7][j + bi];
+                t4 = A[i + 4][j + bi + 4];
+                t5 = A[i + 5][j + bi + 4];
+                t6 = A[i + 6][j + bi + 4];
+                t7 = A[i + 7][j + bi + 4];
+                swap(&B[j + bi][i + 4], &t0);
+                swap(&B[j + bi][i + 5], &t1);
+                swap(&B[j + bi][i + 6], &t2);
+                swap(&B[j + bi][i + 7], &t3);
+                B[j + bi + 4][i + 0] = t0;
+                B[j + bi + 4][i + 1] = t1;
+                B[j + bi + 4][i + 2] = t2;
+                B[j + bi + 4][i + 3] = t3;
+                B[j + bi + 4][i + 4] = t4;
+                B[j + bi + 4][i + 5] = t5;
+                B[j + bi + 4][i + 6] = t6;
+                B[j + bi + 4][i + 7] = t7;
             }
         }
     }
